@@ -46,9 +46,15 @@ def ffmpeg_extraction(video_path: str, output_dir: str) -> None:
             ffmpeg.input(video_path)
             .output(
                 os.path.join(frames_output_dir, f"{interview_id}_%04d.jpg"),
-                vf=f"select='not(mod(n,{frame_interval}))'",
+                vf=f"select='not(mod(n,{frame_interval}))',scale=out_color_matrix=bt601:flags=neighbor",
+                fps_mode="passthrough",
                 start_number="0",
-                **{"qscale:v": 2},
+                **{
+                    "qscale:v": 2,
+                    "pix_fmt": "yuvj444p",
+                },
+                qmin=2,
+                qmax=2,
             )
             .global_args("-loglevel", "error")
             .run(overwrite_output=True)
