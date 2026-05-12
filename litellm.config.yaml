@@ -1,0 +1,46 @@
+model_list:
+  - model_name: gemini-2.5-flash
+    litellm_params:
+      model: gemini/gemini-2.5-flash
+      api_key: os.environ/GEMINI_API_KEY
+      safety_settings:
+        - category: HARM_CATEGORY_HARASSMENT
+          threshold: BLOCK_NONE
+        - category: HARM_CATEGORY_HATE_SPEECH
+          threshold: BLOCK_NONE
+        - category: HARM_CATEGORY_SEXUALLY_EXPLICIT
+          threshold: BLOCK_NONE
+        - category: HARM_CATEGORY_DANGEROUS_CONTENT
+          threshold: BLOCK_NONE
+
+  - model_name: llama-3.3-70b
+    litellm_params:
+      model: groq/llama-3.3-70b-versatile
+      api_key: os.environ/GROQ_API_KEY
+     
+  - model_name: qwen-3-32b
+    litellm_params:
+      model: groq/qwen-3-32b
+      api_key: os.environ/GROQ_API_KEY
+     
+  - model_name: gpt-oss-120b
+    litellm_params:
+      model: groq/gpt-oss-120b
+      api_key: os.environ/GROQ_API_KEY
+     
+  # FIXED: Pointing to Groq's active vision model
+  - model_name: fallback-llama-vision
+    litellm_params:
+      model: groq/meta-llama/llama-4-scout-17b-16e-instruct
+      api_key: os.environ/GROQ_API_KEY
+
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+  database_url: os.environ/DATABASE_URL
+
+
+router_settings:
+  fallbacks:
+    # FIXED: Removed text-only models so images route directly to Groq's vision model
+    - {"gemini-2.5-flash": ["fallback-llama-vision"]}

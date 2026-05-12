@@ -5,3 +5,8 @@ ultralytics
 ffmpeg-python
 av
 pillow
+litellm
+'litellm[proxy]'
+'litellm[google]'
+pyyaml
+prisma
