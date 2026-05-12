@@ -7,6 +7,7 @@ from ultralytics import YOLO
 from src.utils.get_interview_id import get_interview_id
 from src.utils.av_utils import load_image_with_av, save_image_with_av
 from src.utils.yolo_batch import yolo_batch
+from src.review_frames import review_frames
 
 
 # -----------------------------------------------------------------------------
@@ -118,7 +119,7 @@ class ffmpeg_pipeline:
         extracted_frames_count = len(frame_files)
         print(f"Found {extracted_frames_count} extracted frames")
 
-        batch = yolo_batch(self.interview_id, self.multiple_people_dir, self.config, save_image_with_av)
+        batch = yolo_batch(self.interview_id, self.frames_dir, self.multiple_people_dir, self.config, save_image_with_av)
 
         # -------------------------------------------------------------------------
         # PROCESS FRAMES
@@ -141,25 +142,37 @@ class ffmpeg_pipeline:
                 batch.clear_batch()
 
         print()  # Clear the loading line
+        # print(batch.multiple_people_detections_under_review)
+        response = json.loads(review_frames(batch.multiple_people_detections_under_review))["results"]
 
-        # -------------------------------------------------------------------------
-        # FINAL LOGGING
-        # -------------------------------------------------------------------------
-        print(f"INFO: YOLO complete | multiple_people={len(batch.multiple_people_detected)} | absence={len(batch.absence_detected)}")
+        for idx, result in enumerate(response, start=1):
+            if result["multiple_people_detected"] == True:
+                frame_path = batch.multiple_people_detections_under_review[idx - 1]["frame_path"]
+                time_sec = batch.multiple_people_detections_under_review[idx - 1]["time_seconds"]
+                frame_number = batch.multiple_people_detections_under_review[idx - 1]["frame_number"]
+                frame = load_image_with_av(frame_path)
 
-        # -------------------------------------------------------------------------
-        # SAVE JSON OUTPUT
-        # -------------------------------------------------------------------------
-        raw_output = {
-            "interview_id": self.interview_id,
-            "video_path": self.video_path,
-            "fps": self.fps,
-            "duration_seconds": self.duration,
-            "multiple_people_detections": batch.multiple_people_detected,
-            "absence_detections": batch.absence_detected,
-        }
+                if frame is not None:
+                    save_image_with_av(frame, os.path.join(self.multiple_people_dir, f"{self.interview_id}_{frame_number}_sec_{time_sec}_multiple_reviewed.jpg"))
 
-        with open(self.raw_json_path, "w") as f:
-            json.dump(raw_output, f, indent=2)
+        # # -------------------------------------------------------------------------
+        # # FINAL LOGGING
+        # # -------------------------------------------------------------------------
+        # print(f"INFO: YOLO complete | multiple_people={len(batch.multiple_people_detected)} | absence={len(batch.absence_detected)}")
 
-        print(f"INFO: YOLO JSON written: {self.raw_json_path}")
+        # # -------------------------------------------------------------------------
+        # # SAVE JSON OUTPUT
+        # # -------------------------------------------------------------------------
+        # raw_output = {
+        #     "interview_id": self.interview_id,
+        #     "video_path": self.video_path,
+        #     "fps": self.fps,
+        #     "duration_seconds": self.duration,
+        #     "multiple_people_detections": batch.multiple_people_detected,
+        #     "absence_detections": batch.absence_detected,
+        # }
+
+        # with open(self.raw_json_path, "w") as f:
+        #     json.dump(raw_output, f, indent=2)
+
+        # print(f"INFO: YOLO JSON written: {self.raw_json_path}")

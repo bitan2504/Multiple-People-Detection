@@ -6,7 +6,7 @@ from src.utils.read_yaml import read_yaml
 from src.utils.litellm import run_model
 
 if __name__ == "__main__":
-    video_path = "input/69a9e9debd558f4640e0b757_final_screen.mp4"
+    video_path = "input/694a8baf524205756b53b515_final_camera.mp4"
     output_dir = "output"
     
     # run_model(

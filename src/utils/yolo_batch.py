@@ -4,8 +4,9 @@ from ultralytics import YOLO
 
 
 class yolo_batch:
-    def __init__(self, interview_id: str, multiple_people_dir: str, config: dict, save_image_function: callable):
+    def __init__(self, interview_id: str, frame_dir: str, multiple_people_dir: str, config: dict, save_image_function: callable):
         self.interview_id = interview_id
+        self.frame_dir = frame_dir
         self.multiple_people_dir = multiple_people_dir
         self.config = config
         self.save_image_function = save_image_function
@@ -28,7 +29,7 @@ class yolo_batch:
         self.seconds_batch = []
         self.frame_numbers_batch = []
         self.multiple_people_detected = []
-        self.multiple_people_under_review = []
+        self.multiple_people_detections_under_review = []
         self.absence_detected = []
 
     def push_frame(self, frame, sec_val, frame_num):
@@ -60,9 +61,19 @@ class yolo_batch:
             # MULTIPLE PEOPLE DETECTION
             # -----------------------------------------------------------------
             if num_people > self.config["MULTIPLE_PEOPLE_THRESHOLD"]:
+                confidences.sort(reverse=True)
+
+                if confidences[1] < self.config["YOLO_CONFIDENCE_CONFIRMED"]:
+                    frame_name = f"{self.interview_id}_{sec_val:04d}.jpg"
+                    frame_path = os.path.join(self.frame_dir, frame_name)
+                    # print(f"INFO: Multiple people detected but under review | frame={frame_num} | time={sec_val}s | num_people={num_people} | confidences={confidences}")
+                    self.multiple_people_detections_under_review.append(
+                        {"violation_type": "multiple_people_under_review", "time_seconds": sec_val, "frame_path": frame_path, "frame_number": frame_num}
+                    )
+                    continue
+
                 frame_name = f"{self.interview_id}_{frame_num}_sec_{sec_val}_multiple.jpg"
                 frame_path = os.path.join(self.multiple_people_dir, frame_name)
-
                 saved = self.save_image_function(self.frames_batch[i], frame_path)
 
                 if saved:

@@ -19,5 +19,5 @@ def run_model(content: list) -> str | None:
         print(f"Error running model: {e}")
         raise e
 
-    print(respone.choices[0].message.content)
+    # print(respone.choices[0].message.content)
     return respone.choices[0].message.content
