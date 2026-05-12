@@ -4,32 +4,30 @@ import json
 import torch
 from ultralytics import YOLO
 
-# -----------------------------------------------------------------------------
-# CONFIGURATION
-# -----------------------------------------------------------------------------
-YOLO_MODEL_PATH = "yolov8l.pt"
-YOLO_CONFIDENCE = 0.6
-PERSON_CLASS_ID = 0
-
-FRAME_SAMPLE_INTERVAL = 1
-
-BATCH_SIZE_GPU = 16
-BATCH_SIZE_CPU = 4
-
-MULTIPLE_PEOPLE_THRESHOLD = 1
-ABSENCE_THRESHOLD = 0
+from src.utils.get_interview_id import get_interview_id
 
 
 # -----------------------------------------------------------------------------
 # PIPELINE
 # -----------------------------------------------------------------------------
-def cv2_pipeline(video_path: str, output_dir: str) -> None:
-    """Extract frames and run YOLO detection in a single efficient pass."""
+def cv2_pipeline(video_path: str, output_dir: str, config: dict) -> None:
+    """
+    CV2 Pipeline: Extract frames from video using OpenCV at specified intervals, then run YOLO
+    inference on the extracted frames to detect multiple people and absences.
+
+    Arguments:
+        video_path: Path to the input video file.
+        output_dir: Directory where extracted frames and results will be saved.
+        config: Configuration dictionary containing model paths and thresholds.
+
+    Returns:
+        None. Results are saved to disk and printed to console.
+    """
     extraction_model = "cv2"
     print(f"INFO: Starting {extraction_model} pipeline for video: {video_path}")
 
     # ── output paths ─────────────────────────────────────────────────────────
-    interview_id = os.path.basename(video_path).split("/")[-1].split("_")[0]
+    interview_id = get_interview_id(video_path)
 
     frames_dir = os.path.join(output_dir, f"{interview_id}/{extraction_model}/frames")
     multiple_people_dir = os.path.join(
@@ -67,16 +65,18 @@ def cv2_pipeline(video_path: str, output_dir: str) -> None:
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"INFO: YOLO using device: {device}")
 
-    if not os.path.exists(YOLO_MODEL_PATH):
+    if not os.path.exists(config["YOLO_MODEL_PATH"]):
         cap.release()
-        raise FileNotFoundError(f"YOLO model not found at: {YOLO_MODEL_PATH}")
+        raise FileNotFoundError(f"YOLO model not found at: {config['YOLO_MODEL_PATH']}")
 
-    model = YOLO(YOLO_MODEL_PATH)
+    model = YOLO(config["YOLO_MODEL_PATH"])
     model.to(device)
-    print(f"INFO: YOLO model loaded: {YOLO_MODEL_PATH}")
+    print(f"INFO: YOLO model loaded: {config['YOLO_MODEL_PATH']}")
 
     # ── state variables ──────────────────────────────────────────────────────
-    batch_size = BATCH_SIZE_GPU if device == "cuda" else BATCH_SIZE_CPU
+    batch_size = (
+        config["BATCH_SIZE_GPU"] if device == "cuda" else config["BATCH_SIZE_CPU"]
+    )
     frames_batch = []
     seconds_batch = []
     frame_numbers_batch = []
@@ -90,21 +90,21 @@ def cv2_pipeline(video_path: str, output_dir: str) -> None:
             return
 
         results = model(
-            frames_batch, conf=YOLO_CONFIDENCE, device=device, verbose=False
+            frames_batch, conf=config["YOLO_CONFIDENCE"], device=device, verbose=False
         )
 
         for i, r in enumerate(results):
             confidences = [
                 float(box.conf[0])
                 for box in r.boxes
-                if int(box.cls[0]) == PERSON_CLASS_ID
+                if int(box.cls[0]) == config["PERSON_CLASS_ID"]
             ]
 
             num_people = len(confidences)
             sec_val = seconds_batch[i]
             frame_num = frame_numbers_batch[i]
 
-            if num_people > MULTIPLE_PEOPLE_THRESHOLD:
+            if num_people > config["MULTIPLE_PEOPLE_THRESHOLD"]:
                 frame_name = f"{interview_id}_{frame_num}_sec_{sec_val}_multiple.jpg"
                 frame_path = os.path.join(multiple_people_dir, frame_name)
 
@@ -126,7 +126,7 @@ def cv2_pipeline(video_path: str, output_dir: str) -> None:
                         f"WARNING: Failed to save multiple people frame: {frame_path}"
                     )
 
-            elif num_people <= ABSENCE_THRESHOLD:
+            elif num_people <= config["ABSENCE_THRESHOLD"]:
                 absence_detections.append(
                     {
                         "violation_type": "absence",
@@ -141,7 +141,7 @@ def cv2_pipeline(video_path: str, output_dir: str) -> None:
     # ── process video (single pass) ──────────────────────────────────────────
     print("INFO: Starting frame extraction and YOLO inference...")
 
-    for sec in range(0, duration, FRAME_SAMPLE_INTERVAL):
+    for sec in range(0, duration, config["FRAME_SAMPLE_INTERVAL"]):
         frame_number = int(sec * fps)
         cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
         ret, frame = cap.read()

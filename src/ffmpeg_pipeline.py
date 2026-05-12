@@ -7,30 +7,11 @@ import numpy as np
 from PIL import Image
 from ultralytics import YOLO
 
-# -----------------------------------------------------------------------------
-# CONFIGURATION
-# -----------------------------------------------------------------------------
-YOLO_MODEL_PATH = "yolov8l.pt"
-YOLO_CONFIDENCE = 0.6
-PERSON_CLASS_ID = 0
-FRAME_SAMPLE_INTERVAL = 1
-
-BATCH_SIZE_GPU = 16
-BATCH_SIZE_CPU = 4
-
-MULTIPLE_PEOPLE_THRESHOLD = 1
-ABSENCE_THRESHOLD = 0
-
 
 # -----------------------------------------------------------------------------
 # IMAGE UTILITIES
 # -----------------------------------------------------------------------------
 def load_image_with_av(image_path: str) -> np.ndarray | None:
-    """
-    Load image using PyAV and return as BGR numpy array.
-    PyAV decodes to RGB natively — we convert to BGR so YOLO
-    receives the same format as the cv2 pipeline.
-    """
     try:
         container = av.open(image_path)
         for frame in container.decode(video=0):
@@ -48,10 +29,6 @@ def load_image_with_av(image_path: str) -> np.ndarray | None:
 
 
 def save_image_with_av(image_array: np.ndarray, save_path: str) -> bool:
-    """
-    Save a BGR numpy array as JPEG using PIL.
-    Converts BGR -> RGB before saving so colors are correct.
-    """
     try:
         # image_array is BGR (after our load conversion), flip back to RGB for PIL
         rgb_array = image_array[:, :, ::-1].copy()
@@ -66,7 +43,19 @@ def save_image_with_av(image_array: np.ndarray, save_path: str) -> bool:
 # -----------------------------------------------------------------------------
 # EXTRACTION & PROCESSING
 # -----------------------------------------------------------------------------
-def ffmpeg_pipeline(video_path: str, output_dir: str) -> None:
+def ffmpeg_pipeline(video_path: str, output_dir: str, config: dict) -> None:
+    """
+    Extract frames from video using ffmpeg at specified intervals, then run YOLO
+    inference on the extracted frames to detect multiple people and absences.
+
+    Arguments:
+        video_path: Path to the input video file.
+        output_dir: Directory where extracted frames and results will be saved.
+        config: Configuration dictionary containing model paths and thresholds.\
+        
+    Returns:
+        None. Results are saved to disk and printed to console.
+    """
     extraction_model = "ffmpeg"
     print(
         f"Extracting frames from video: {video_path} to {output_dir} using {extraction_model}..."
@@ -139,12 +128,12 @@ def ffmpeg_pipeline(video_path: str, output_dir: str) -> None:
     print(f"Using device: {device} for YOLO inference")
 
     # ── load YOLO model ───────────────────────────────────────────────────────
-    if not os.path.exists(YOLO_MODEL_PATH):
-        raise FileNotFoundError(f"YOLO model not found: {YOLO_MODEL_PATH}")
+    if not os.path.exists(config["YOLO_MODEL_PATH"]):
+        raise FileNotFoundError(f"YOLO model not found: {config['YOLO_MODEL_PATH']}")
 
-    model = YOLO(YOLO_MODEL_PATH)
+    model = YOLO(config["YOLO_MODEL_PATH"])
     model.to(device)
-    print(f"Loaded YOLO model from: {YOLO_MODEL_PATH}")
+    print(f"Loaded YOLO model from: {config['YOLO_MODEL_PATH']}")
 
     # ── prepare frame list ────────────────────────────────────────────────────
     frame_files = sorted(
@@ -162,7 +151,9 @@ def ffmpeg_pipeline(video_path: str, output_dir: str) -> None:
     print(f"Found {extracted_frames_count} extracted frames")
 
     # ── batch settings ────────────────────────────────────────────────────────
-    batch_size = BATCH_SIZE_GPU if device == "cuda" else BATCH_SIZE_CPU
+    batch_size = (
+        config["BATCH_SIZE_GPU"] if device == "cuda" else config["BATCH_SIZE_CPU"]
+    )
     frames_batch = []
     seconds_batch = []
     frame_numbers_batch = []
@@ -172,7 +163,7 @@ def ffmpeg_pipeline(video_path: str, output_dir: str) -> None:
     def _process_batch():
         results = model(
             frames_batch,
-            conf=YOLO_CONFIDENCE,
+            conf=config["YOLO_CONFIDENCE"],
             device=device,
             verbose=False,
         )
@@ -181,7 +172,7 @@ def ffmpeg_pipeline(video_path: str, output_dir: str) -> None:
             confidences = [
                 float(box.conf[0])
                 for box in r.boxes
-                if int(box.cls[0]) == PERSON_CLASS_ID
+                if int(box.cls[0]) == config["PERSON_CLASS_ID"]
             ]
 
             num_people = len(confidences)
@@ -191,7 +182,7 @@ def ffmpeg_pipeline(video_path: str, output_dir: str) -> None:
             # -----------------------------------------------------------------
             # MULTIPLE PEOPLE DETECTION
             # -----------------------------------------------------------------
-            if num_people > MULTIPLE_PEOPLE_THRESHOLD:
+            if num_people > config["MULTIPLE_PEOPLE_THRESHOLD"]:
                 frame_name = f"{interview_id}_{frame_num}_sec_{sec_val}_multiple.jpg"
                 frame_path = os.path.join(multiple_people_dir, frame_name)
 
@@ -216,7 +207,7 @@ def ffmpeg_pipeline(video_path: str, output_dir: str) -> None:
             # -----------------------------------------------------------------
             # ABSENCE DETECTION
             # -----------------------------------------------------------------
-            elif num_people <= ABSENCE_THRESHOLD:
+            elif num_people <= config["ABSENCE_THRESHOLD"]:
                 absence_detections.append(
                     {
                         "violation_type": "absence",
@@ -243,7 +234,7 @@ def ffmpeg_pipeline(video_path: str, output_dir: str) -> None:
             print(f"WARNING: Could not read frame: {frame_path} — skipping")
             continue
 
-        sec_val = idx * FRAME_SAMPLE_INTERVAL
+        sec_val = idx * config["FRAME_SAMPLE_INTERVAL"]
         frame_number = int(sec_val * fps)
 
         frames_batch.append(frame)
