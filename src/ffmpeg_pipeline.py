@@ -158,21 +158,21 @@ class ffmpeg_pipeline:
         # # -------------------------------------------------------------------------
         # # FINAL LOGGING
         # # -------------------------------------------------------------------------
-        # print(f"INFO: YOLO complete | multiple_people={len(batch.multiple_people_detected)} | absence={len(batch.absence_detected)}")
+        print(f"INFO: YOLO complete | multiple_people={len(batch.multiple_people_detected)} | absence={len(batch.absence_detected)}")
 
         # # -------------------------------------------------------------------------
         # # SAVE JSON OUTPUT
         # # -------------------------------------------------------------------------
-        # raw_output = {
-        #     "interview_id": self.interview_id,
-        #     "video_path": self.video_path,
-        #     "fps": self.fps,
-        #     "duration_seconds": self.duration,
-        #     "multiple_people_detections": batch.multiple_people_detected,
-        #     "absence_detections": batch.absence_detected,
-        # }
+        raw_output = {
+            "interview_id": self.interview_id,
+            "video_path": self.video_path,
+            "fps": self.fps,
+            "duration_seconds": self.duration,
+            "multiple_people_detections": batch.multiple_people_detected,
+            "absence_detections": batch.absence_detected,
+        }
 
-        # with open(self.raw_json_path, "w") as f:
-        #     json.dump(raw_output, f, indent=2)
+        with open(self.raw_json_path, "w") as f:
+            json.dump(raw_output, f, indent=2)
 
-        # print(f"INFO: YOLO JSON written: {self.raw_json_path}")
+        print(f"INFO: YOLO JSON written: {self.raw_json_path}")

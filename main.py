@@ -6,7 +6,7 @@ from src.utils.read_yaml import read_yaml
 from src.utils.litellm import run_model
 
 if __name__ == "__main__":
-    video_path = "input/694a8baf524205756b53b515_final_camera.mp4"
+    video_path = "input/India002_final.mp4"
     output_dir = "output"
     
     # run_model(
@@ -19,4 +19,4 @@ if __name__ == "__main__":
     config = dict(read_yaml("yolo.config.yaml"))
     # print(f"{config}")
     ffmpeg_pipeline(video_path, output_dir, config)
-    # cv2_pipeline(video_path, output_dir, config)
+    cv2_pipeline(video_path, output_dir, config)
